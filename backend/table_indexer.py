@@ -1,4 +1,4 @@
-__version__ = 'V1.0'
+__version__ = 'V1.1'
 
 import os, mysql.connector, sys, gzip, copy, re
 
@@ -186,7 +186,6 @@ https://github.com/PlatonB/bioinformatic-python-scripts)
                 if arc_file_name.startswith('.~lock.'):
                         continue
                 with gzip.open(os.path.join(ind_dir_path, arc_file_name), mode='rt') as arc_file_opened:
-                        print(f'\nТаблица {arc_file_name} новой базы данных пополняется')
                         
                         #Автоматическое определение и прочтение
                         #вхолостую хэдеров таблиц распространённых
@@ -242,10 +241,12 @@ https://github.com/PlatonB/bioinformatic-python-scripts)
                                 col_info[col_name][1] = str(header_row.index(col_name))
                                 
                         #Для простоты назовём таблицы БД теми же
-                        #именами, что и у исходных, но только
-                        #без точек, т.к. наличие последних в
+                        #именами, что и у исходных, но только без
+                        #точек и дефисов, т.к. наличие таковых в
                         #именах таблиц MySQL-баз недопустимо.
-                        tab_name = arc_file_name.replace('.', 'DOT')
+                        tab_name = arc_file_name.replace('.', 'DOT').replace('-', 'DEFIS')
+                        
+                        print(f'\nТаблица {tab_name} новой базы данных пополняется')
                         
                         #Создаём таблицу БД, которая будет
                         #служить путеводителем по соответствующей
