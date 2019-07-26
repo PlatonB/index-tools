@@ -1,15 +1,16 @@
-__version__ = 'V1.0'
+__version__ = 'V2.0'
 
 print('''
-Конструктор запросов к большим неотсортированным таблицам.
+Конструктор запросов к большим таблицам.
 
 Автор: Платон Быкадоров (platon.work@gmail.com), 2019.
-Версия: V1.0.
+Версия: V2.0.
 Лицензия: GNU General Public License version 3.
 Поддержать проект: https://money.yandex.ru/to/41001832285976
 Документация: https://github.com/PlatonB/index-tools/blob/master/README.md
 
-Обязательно! Установка модуля:
+Обязательно!
+Перед запуском программы нужно установить модуль:
 sudo pip3 install mysql-connector-python
 
 Таблицы, в которых будет производиться поиск,
@@ -20,6 +21,9 @@ sudo pip3 install mysql-connector-python
 Пример подходящих данных - *vcf.gz-файлы проекта 1000 Genomes (придётся исключить
 файл по Y-хромосоме, т.к. он с меньшим количеством столбцов, чем у остальных):
 ftp://ftp.1000genomes.ebi.ac.uk/vol1/ftp/release/20130502/supporting/GRCh38_positions/
+
+Запросы на диапазон значений числового столбца (between)
+выполняются быстро, только если этот столбец отсортирован.
 
 Если настройки, запрашиваемые в рамках интерактивного
 диалога, вам непонятны - пишите, пожалуйста, в Issues.
@@ -134,7 +138,7 @@ for tab_name in tab_names:
         
         #Открытие проиндексированного архива на чтение
         #и файла для поисковых результатов на запись.
-        with gzip.open(os.path.join(arc_dir_path, arc_file_name), mode='rt') as arc_file_opened:
+        with gzip.open(os.path.join(arc_dir_path, arc_file_name)) as arc_file_opened:
                 with open(trg_file_path, 'w') as trg_file_opened:
                         
                         #Созданная бэкендом база включает в
@@ -168,11 +172,18 @@ for tab_name in tab_names:
                         
                         #Перемещение курсора по сжатой таблице к
                         #началу каждой отвечающей запросу строки.
-                        #Прописывание этих строк в конечный файл.
+                        #Очередная новая позиция курсора отсчитывается
+                        #не от начала файла, а от последней запомненной
+                        #позиции, что в ряде случаев приводит к
+                        #достижению колоссальной производительности.
+                        #Прописывание найденных строк в конечный файл.
                         #Инкрементация счётчика прописанных строк.
+                        cur_pointer = 0
                         for tup in cursor:
-                                arc_file_opened.seek(int(tup[0]))
-                                trg_file_opened.write(arc_file_opened.readline())
+                                new_pointer = int(tup[0])
+                                arc_file_opened.seek(new_pointer - cur_pointer, 1)
+                                trg_file_opened.write(arc_file_opened.readline().decode('UTF-8'))
+                                cur_pointer = arc_file_opened.tell()
                                 num_of_lines += 1
                                 
         #Если счётчик так и остался равен единице,
