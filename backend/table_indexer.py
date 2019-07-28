@@ -1,4 +1,4 @@
-__version__ = 'V1.2'
+__version__ = 'V1.3'
 
 import os, mysql.connector, sys, gzip, copy, re
 
@@ -170,9 +170,9 @@ https://github.com/PlatonB/bioinformatic-python-scripts)
         #в базу наборами по 10000 строк, как показала
         #практика, осуществляется крайне неэффективно,
         #или даже заканчивается вылетом программы.
-        #На время выполнения индексации некоторые
-        #лимиты MySQL приведём к оптимальным для
-        #объёма RAM компьютера исследователя значениям.
+        #На время процесса пополнения и индексации таблиц
+        #БД приведём некоторые лимиты MySQL к оптимальным
+        #для объёма RAM компьютера исследователя значениям.
         cursor.execute(f'SET GLOBAL innodb_buffer_pool_size = {str(ram // 2)} * 1024 * 1024 * 1024')
         cursor.execute(f'SET GLOBAL max_allowed_packet = {str(ram)} * 1024 * 1024 * 1024')
         
