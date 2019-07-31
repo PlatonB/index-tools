@@ -33,33 +33,35 @@ Clone or download
 - В Linux программы, позволяющие запускать команды, называются эмуляторами терминала. В составе вашего дистрибутива таковой будет, скорее всего, под названием `Терминал` или `Консоль`. Для тру-хакеров есть ещё чисто текстовое окружение, в которое можно переключиться сочетанием клавиш `CTRL+ALT+F2`.
 - `CTRL+ALT+C` - скопировать что-либо из эмулятора терминала;
 - `CTRL+ALT+V` - вставить что-либо в эмулятор терминала.
-- `CTRL+D` - выйти из открытой в эмуляторе терминала программы. Это как всем знакомый крестик у окон в графических окружениях.
+- `CTRL+D` - выйти из открытой в эмуляторе терминала программы. Это как нажатие на всем знакомый крестик у окон в графических окружениях.
 - При вводе или вставке пароля вы, возможно, будете ожидать появление звёздочек. Но этого не произойдёт: пароли в линуксовой командной строке набираются/вставляются в невидимом режиме.
 
 #### Ubuntu Linux/[elementary OS](https://elementary.io/ru/)/Linux Mint.
-Установим MySQL со всеми зависимостями.
+Устанавливаем MySQL со всеми зависимостями.
 ```
 sudo apt install mysql-server
 ```
 
-Подключимся к серверу MySQL.
+Подключаемся к серверу MySQL.
 ```
 sudo mysql -u root -p
 ```
 
-Вводим тот же пароль, что служит паролём root (суперадминистратора).
+Вводим тот же пароль, что служит в вашей ОС паролём root (суперадминистратора).
 
 Тут же появится предложение ввести ещё один пароль. Игнорируем.
 
 Создаём обычного пользователя MySQL.
 ```
-CREATE USER 'platon'@'localhost';
+CREATE USER 'имя_пользователя'@'localhost';
 ```
 
 Наделяем его необходимыми полномочиями.
 ```
-GRANT ALL ON *.* TO 'platon'@'localhost' WITH GRANT OPTION;
+GRANT ALL ON *.* TO 'имя_пользователя'@'localhost' WITH GRANT OPTION;
 ```
+
+Расконнекчиваемся (`CTRL+D`).
 
 #### Fedora Linux.
 В этом дистрибутиве процесс подготовки MySQL несколько сложнее, чем в Ubuntu.
@@ -69,19 +71,21 @@ GRANT ALL ON *.* TO 'platon'@'localhost' WITH GRANT OPTION;
 sudo dnf install https://dev.mysql.com/get/mysql80-community-release-fc30-1.noarch.rpm
 ```
 
-Устанавливаем MySQL и сопутствующие компоненты.
+Инсталлируем MySQL и сопутствующие компоненты.
 ```
 sudo dnf install mysql-server
 ```
 
 Перезагружаем компьютер, чтобы не появилась ошибка `ERROR 2002 (HY000): Can't connect to local MySQL server through socket '/var/lib/mysql/mysql.sock' (2)`
 
-Далее при попытке подключиться к MySQL-серверу, скорее всего, возникнет ошибка `ERROR 1045 (28000): Access denied for user 'root'@'localhost' (using password: NO)`. Чтобы её избежать, сделаем менёвр с паролями.
+Далее при попытке подключиться к MySQL-серверу, скорее всего, возникнет сообщение `ERROR 1045 (28000): Access denied for user 'root'@'localhost' (using password: NO)`. Чтобы этого избежать, сделаем менёвр с паролями.
 
-Получаем временный пароль. Копируем его.
+Получаем временный пароль.
 ```
 sudo grep 'temporary password' /var/log/mysqld.log
 ```
+
+Копируем его.
 
 Подключаемся к серверу MySQL с этим временным паролем.
 ```
@@ -90,17 +94,17 @@ sudo mysql -u root -p
 
 Создаём root-пароль MySQL.
 ```
-ALTER USER 'root'@'localhost' IDENTIFIED BY 'пароль_со_спецсимволами!';
+ALTER USER 'root'@'localhost' IDENTIFIED BY 'пароль_со_спец!символами';
 ```
 
-Выходим из MySQL, нажав `<CTRL+D>`.
+Выходим из MySQL, нажав `CTRL+D`.
 
 Подсоединяемся к MySQL, на этот раз задействовав root-пароль.
 ```
 sudo mysql -u root -p
 ```
 
-Чтобы создании обычного пользователя не было ошибки `ERROR 1819 (HY000): Your password does not satisfy the current policy requirements`, удалим строгий до степени вредности валидатор паролей:).
+Чтобы при создании обычного пользователя не было ошибки `ERROR 1819 (HY000): Your password does not satisfy the current policy requirements`, удалим строгий до степени вредности валидатор паролей:).
 ```
 UNINSTALL COMPONENT 'file://component_validate_password';
 ```
@@ -115,4 +119,4 @@ CREATE USER 'имя_пользователя'@'localhost';
 GRANT ALL ON *.* TO 'имя_пользователя'@'localhost' WITH GRANT OPTION;
 ```
 
-Отсоединяемся (`<CTRL+D>`).
+Отсоединяемся (`CTRL+D`).
