@@ -1,10 +1,10 @@
-__version__ = 'V2.0'
+__version__ = 'V2.1'
 
 print('''
 Конструктор запросов к большим таблицам.
 
 Автор: Платон Быкадоров (platon.work@gmail.com), 2019.
-Версия: V2.0.
+Версия: V2.1.
 Лицензия: GNU General Public License version 3.
 Поддержать проект: https://money.yandex.ru/to/41001832285976
 Документация: https://github.com/PlatonB/index-tools/blob/master/README.md
@@ -54,7 +54,7 @@ cnx = mysql.connector.connect(user=user)
 cursor = cnx.cursor()
 cursor.execute(f'USE {db_name}')
 
-cont, query = 'y', []
+cont, where = 'y', []
 while cont not in ['no', 'n', '']:
         
         if len(col_names_n_types) > 1:
@@ -90,7 +90,7 @@ while cont not in ['no', 'n', '']:
                 elif operator == 'BETWEEN':
                         cond = input('\nНижняя граница: ') + ' AND '
                         cond += input('\nВерхняя граница: ')
-                query.append(f'({col_name} {operator} {cond})')
+                where.append(f'({col_name} {operator} {cond})')
                 
         if operator in ['NOT IN', 'IN', '']:
                 if operator == '':
@@ -98,12 +98,9 @@ while cont not in ['no', 'n', '']:
                 raw_cond = input(f'''\nПоисковое слово или несколько слов
 (через запятую с пробелом):
 {operator} ''').split(', ')
-                cond = ['"' + word + '"' for word in raw_cond]
-                if operator == 'IN':
-                        query.append(f'({col_name} {operator} ({", ".join(cond)}))')
-                elif operator == 'NOT IN':
-                        query.append(f'(NOT {col_name} IN ({", ".join(cond)}))')
-                        
+                cond = [f'"{word}"' for word in raw_cond]
+                where.append(f'({col_name} {operator} ({", ".join(cond)}))')
+                
         if len(col_names_n_types) > 1:
                 cont = input('''\nИскать ещё в одном столбце?
 (игнорирование ввода ==> нет)
@@ -136,27 +133,33 @@ for tab_name in tab_names:
         trg_file_name = f'found_in_{".".join(arc_file_name.split(".")[:-1])}'
         trg_file_path = os.path.join(trg_dir_path, trg_file_name)
         
+        #Создаём флаг, по которому далее будет
+        #определено, оказались ли в конечном
+        #файле строки, отличные от хэдеров.
+        empty_res = True
+        
         #Открытие проиндексированного архива на чтение
         #и файла для поисковых результатов на запись.
         with gzip.open(os.path.join(arc_dir_path, arc_file_name)) as arc_file_opened:
                 with open(trg_file_path, 'w') as trg_file_opened:
                         
+                        #Конкатенируем элементы запроса, и
+                        #прописываем полученную строку в конечный
+                        #файл в качестве первого из хэдеров.
+                        trg_file_opened.write(f'##{" AND ".join(where)}\n')
+                        
                         #Созданная бэкендом база включает в
-                        #себя также набор элементов хэдера.
+                        #себя также набор элементов шапки.
                         #Исходная последовательность этих
                         #элементов сохранена, поэтому из
-                        #них легко собраем хэдер обратно.
+                        #них легко собраем шапку обратно.
                         cursor.execute('SELECT header_cells FROM header')
                         header_line = '\t'.join([tup[0] for tup in cursor])
                         
-                        #Прописываем восстановленный хэдер в конечный файл.
+                        #Прописываем восстановленную
+                        #шапку в конечный файл.
+                        #Это будет второй хэдер.
                         trg_file_opened.write(header_line + '\n')
-                        
-                        #Создаём счётчик количества прописанных
-                        #строк со стартовым значением, равным 1.
-                        #По нему далее будет определено, оказались ли
-                        #в конечном файле строки, отличные от хэдера.
-                        num_of_lines = 1
                         
                         print(f'\nПоиск по таблице {tab_name} базы данных')
                         
@@ -165,10 +168,12 @@ for tab_name in tab_names:
                         #сформированных ранее условий.
                         #Инструкция позволит извлечь из
                         #текущей таблицы БД байтовые позиции
-                        #начала соответствующих этому
-                        #запросу строк архивированной таблицы.
+                        #начала отвечающих этому запросу
+                        #строк архивированной таблицы.
                         cursor.execute(f'''SELECT line_start FROM {tab_name}
-                                           WHERE {" AND ".join(query)}''')
+                                           WHERE {" AND ".join(where)}''')
+                        
+                        print(f'Извлечение найденных строк таблицы {arc_file_name}')
                         
                         #Перемещение курсора по сжатой таблице к
                         #началу каждой отвечающей запросу строки.
@@ -177,20 +182,21 @@ for tab_name in tab_names:
                         #позиции, что в ряде случаев приводит к
                         #достижению колоссальной производительности.
                         #Прописывание найденных строк в конечный файл.
-                        #Инкрементация счётчика прописанных строк.
+                        #Присвоение флагу значения, показывающего
+                        #наличие в конечном файле нехэдерных строк.
                         cur_pointer = 0
-                        for tup in cursor:
-                                new_pointer = int(tup[0])
+                        for line_starts in cursor:
+                                new_pointer = line_starts[0]
                                 arc_file_opened.seek(new_pointer - cur_pointer, 1)
                                 trg_file_opened.write(arc_file_opened.readline().decode('UTF-8'))
                                 cur_pointer = arc_file_opened.tell()
-                                num_of_lines += 1
+                                empty_res = False
                                 
-        #Если счётчик так и остался равен единице,
+        #Если флаг-индикатор так и остался равен True,
         #значит, результатов поиска по данной таблице
-        #нет, и в конечный файл попал только хэдер.
-        #Такие конечные файлы программа удаляет.
-        if num_of_lines == 1:
+        #нет, и в конечный файл попали только хэдеры.
+        #Такие конечные файлы программа удалит.
+        if empty_res == True:
                 os.remove(trg_file_path)
                 
 cnx.close()
