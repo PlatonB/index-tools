@@ -1,10 +1,10 @@
-__version__ = 'V2.3'
+__version__ = 'V2.4'
 
 print('''
 Конструктор запросов к большим таблицам.
 
 Автор: Платон Быкадоров (platon.work@gmail.com), 2019.
-Версия: V2.3.
+Версия: V2.4.
 Лицензия: GNU General Public License version 3.
 Поддержать проект: https://money.yandex.ru/to/41001832285976
 Документация: https://github.com/PlatonB/index-tools/blob/master/README.md
@@ -56,7 +56,7 @@ cnx = mysql.connector.connect(user=user)
 cursor = cnx.cursor()
 cursor.execute(f'USE {db_name}')
 
-cont, where = 'y', []
+cont, conds = 'y', []
 while cont not in ['no', 'n', '']:
         
         if len(col_names_n_types) > 1:
@@ -69,7 +69,7 @@ while cont not in ['no', 'n', '']:
                 col_name = list(col_names_n_types.keys())[0]
                 
         if col_names_n_types[col_name] == 'char':
-                operator = input('''\nЛогический оператор
+                operator = input('''\nОператор сравнения
 (игнорирование ввода ==> поиск будет по самим словам)
 [not in|in(|<enter>)]: ''').upper()
                 if operator not in ['NOT IN', 'IN', '']:
@@ -77,7 +77,7 @@ while cont not in ['no', 'n', '']:
                         sys.exit()
                         
         else:
-                operator = input('''\nЛогический оператор
+                operator = input('''\nОператор сравнения
 (игнорирование ввода ==> поиск будет по самим числам)
 (between - поиск от числа 1 до числа 2 включительно)
 [>|<|>=|<=|between|not in|in(|<enter>)]: ''').upper()
@@ -92,7 +92,7 @@ while cont not in ['no', 'n', '']:
                 elif operator == 'BETWEEN':
                         cond = input('\nНижняя граница: ') + ' AND '
                         cond += input('\nВерхняя граница: ')
-                where.append(f'({col_name} {operator} {cond})')
+                conds.append(f'({col_name} {operator} {cond})')
                 
         if operator in ['NOT IN', 'IN', '']:
                 if operator == '':
@@ -101,7 +101,7 @@ while cont not in ['no', 'n', '']:
 (через запятую с пробелом):
 {operator} ''').split(', ')
                 cond = [f'"{word}"' for word in raw_cond]
-                where.append(f'({col_name} {operator} ({", ".join(cond)}))')
+                conds.append(f'({col_name} {operator} ({", ".join(cond)}))')
                 
         if len(col_names_n_types) > 1:
                 cont = input('''\nИскать ещё в одном столбце?
@@ -114,12 +114,16 @@ while cont not in ['no', 'n', '']:
         else:
                 break
         
+#Объединяем сформированные
+#ранее поисковые условия.
+where = " AND ".join(conds)
+
 #Созданная бэкендом БД также
 #содержит отдельную таблицу с
 #элементами пантабличной шапки.
 #Исходная последовательность этих
 #элементов сохранена, поэтому из
-#них легко собраем шапку обратно.
+#них легко собираем шапку обратно.
 cursor.execute('SELECT header_cells FROM header')
 header_line = '\t'.join([tup[0] for tup in cursor])
 
@@ -154,29 +158,27 @@ for tab_name in tab_names:
         with gzip.open(os.path.join(arc_dir_path, arc_file_name)) as arc_file_opened:
                 with open(trg_file_path, 'w') as trg_file_opened:
                         
-                        #Конкатенируем элементы запроса, и
-                        #прописываем полученную строку в конечный
-                        #файл в качестве первого из хэдеров.
-                        trg_file_opened.write(f'##{" AND ".join(where)}\n')
+                        #Прописываем сконкатенированные
+                        #поисковые условия в конечный файл
+                        #в качестве первого из хэдеров.
+                        trg_file_opened.write(f'##{where}\n')
                         
-                        #Прописываем восстановленную
-                        #ранее шапку в конечный файл.
+                        #То же самое делаем с
+                        #восстановленной ранее шапкой.
                         #Это будет второй хэдер.
                         trg_file_opened.write(header_line + '\n')
                         
                         print(f'\nПоиск по таблице {tab_name} базы данных')
                         
                         #Инструкция, собственно, поиска.
-                        #Собираем для неё запрос из списка
-                        #сформированных ранее условий.
-                        #Инструкция позволит извлечь из
-                        #текущей таблицы БД байтовые позиции
+                        #Она позволит извлечь из текущей
+                        #таблицы БД байтовые позиции
                         #начала отвечающих этому запросу
                         #строк архивированной таблицы.
                         cursor.execute(f'''SELECT line_start FROM {tab_name}
-                                           WHERE {" AND ".join(where)}''')
+                                           WHERE {where}''')
                         
-                        print(f'Извлечение найденных строк таблицы {arc_file_name}')
+                        print(f'Извлечение отобранных строк таблицы {arc_file_name}')
                         
                         #Перемещение курсора по сжатой таблице к
                         #началу каждой отвечающей запросу строки.
