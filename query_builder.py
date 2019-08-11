@@ -1,10 +1,10 @@
-__version__ = 'V2.2'
+__version__ = 'V2.3'
 
 print('''
 Конструктор запросов к большим таблицам.
 
 Автор: Платон Быкадоров (platon.work@gmail.com), 2019.
-Версия: V2.2.
+Версия: V2.3.
 Лицензия: GNU General Public License version 3.
 Поддержать проект: https://money.yandex.ru/to/41001832285976
 Документация: https://github.com/PlatonB/index-tools/blob/master/README.md
@@ -114,6 +114,15 @@ while cont not in ['no', 'n', '']:
         else:
                 break
         
+#Созданная бэкендом БД также
+#содержит отдельную таблицу с
+#элементами пантабличной шапки.
+#Исходная последовательность этих
+#элементов сохранена, поэтому из
+#них легко собраем шапку обратно.
+cursor.execute('SELECT header_cells FROM header')
+header_line = '\t'.join([tup[0] for tup in cursor])
+
 #Поиск производится по всем таблицам базы.
 #Т.е. даже, если в одной из них уже
 #обнаружились соответствия запросу, обход
@@ -150,16 +159,8 @@ for tab_name in tab_names:
                         #файл в качестве первого из хэдеров.
                         trg_file_opened.write(f'##{" AND ".join(where)}\n')
                         
-                        #Созданная бэкендом база включает в
-                        #себя также набор элементов шапки.
-                        #Исходная последовательность этих
-                        #элементов сохранена, поэтому из
-                        #них легко собраем шапку обратно.
-                        cursor.execute('SELECT header_cells FROM header')
-                        header_line = '\t'.join([tup[0] for tup in cursor])
-                        
                         #Прописываем восстановленную
-                        #шапку в конечный файл.
+                        #ранее шапку в конечный файл.
                         #Это будет второй хэдер.
                         trg_file_opened.write(header_line + '\n')
                         
