@@ -1,17 +1,19 @@
-__version__ = 'V2.0'
+__version__ = 'V3.0'
 
 print('''
 Программа пересечения и вычитания.
 
+Работает только с testing-версией ClickHouse!
+
 Автор: Платон Быкадоров (platon.work@gmail.com), 2019.
-Версия: V2.0.
+Версия: V3.0.
 Лицензия: GNU General Public License version 3.
 Поддержать проект: https://money.yandex.ru/to/41001832285976
 Документация: https://github.com/PlatonB/index-tools/blob/master/README.md
 
 Обязательно!
 Перед запуском программы нужно установить модуль:
-sudo pip3 install mysql-connector-python
+pip3 install clickhouse-driver --user
 
 Таблицы, по одному из столбцов которых
 предполагается пересекать или вычитать,
@@ -19,16 +21,15 @@ sudo pip3 install mysql-connector-python
 1. Если их несколько, то одинаковой структуры;
 2. Содержать шапку (одну и ту же для всех);
 3. Каждая по отдельности - сжата в GZIP/BGZIP.
-Пример подходящих данных - *vcf.gz-файлы проекта 1000 Genomes (придётся исключить
-файл по Y-хромосоме, т.к. он с меньшим количеством столбцов, чем у остальных):
-ftp://ftp.1000genomes.ebi.ac.uk/vol1/ftp/release/20130502/supporting/GRCh38_positions/
+Пример подходящих данных - *.egenes.txt.gz-файлы проекта GTEx:
+https://storage.googleapis.com/gtex_analysis_v8/single_tissue_qtl_data/GTEx_Analysis_v8_eQTL.tar
 
 Пересечение:
 Столбец *каждой* левой таблицы пересекается
 с тем же столбцом *всех* правых таблиц.
 
 Вычитание:
-Из столбца *каждой* левой таблицы вычетается
+Из столбца *каждой* левой таблицы вычитается
 тот же столбец *всех* правых таблиц.
 
 Если настройки, запрашиваемые в рамках интерактивного
@@ -43,8 +44,9 @@ import sys
 #целью предотвращения искажения результатов.
 sys.dont_write_bytecode = True
 
-import mysql.connector, copy, os, gzip
 from backend.table_indexer import create_database
+from clickhouse_driver import Client
+import copy, os, gzip
 
 #Индексация выбранных пользователем
 #столбцов исходных сжатых таблиц.
@@ -55,16 +57,15 @@ from backend.table_indexer import create_database
 #Получение путей к папке с упомянутыми
 #таблицами и конечной папки, а также
 #различных характеристик базы данных.
-arc_dir_path, trg_dir_path, user, db_name, tab_names, col_names_n_types = create_database()
+arc_dir_path, trg_dir_path, db_name, tab_names, col_names_n_types = create_database()
 
 if len(tab_names) == 1:
         print('Для пересечения или вычитания требуется не менее двух таблиц')
         sys.exit()
         
 #Стандартные действия для подключения к БД.
-cnx = mysql.connector.connect(user=user)
-cursor = cnx.cursor()
-cursor.execute(f'USE {db_name}')
+client = Client('localhost')
+client.execute(f'USE {db_name}')
 
 left_tab_names = input(f'''\nИмя одной или имена нескольких "левых" таблиц БД
 (через запятую с пробелом)
@@ -98,14 +99,15 @@ else:
         print(f'{action} - недопустимая опция')
         sys.exit()
         
+client.execute('SET join_use_nulls = 1')
+
 #Созданная бэкендом БД также
 #содержит отдельную таблицу с
 #элементами пантабличной шапки.
 #Исходная последовательность этих
 #элементов сохранена, поэтому из
 #них легко собраем шапку обратно.
-cursor.execute('SELECT header_cells FROM header')
-header_line = '\t'.join([tup[0] for tup in cursor])
+header_line = '\t'.join([tup[0] for tup in client.execute('SELECT header_cells FROM header')])
 
 #Все дальнейшие действия будут производиться
 #для каждой левой таблицы по-отдельности.
@@ -118,8 +120,10 @@ for left_tab_name in left_tab_names:
         #Теперь для решения обратной задачи - получения
         #имени архива по имени таблицы - возвращаем точки
         #и дефисы на позиции альтернативных обозначений.
-        left_arc_file_name = left_tab_name.replace('DOT', '.').replace('DEFIS', '-')
-        right_arc_file_names = [right_tab_name.replace('DOT', '.').replace('DEFIS', '-') \
+        #Если имя правой таблицы по ошибке или специально
+        #совпадает с именем левой, то будет проигнорировано.
+        left_arc_file_name = left_tab_name[3:].replace('DOT', '.').replace('DEFIS', '-')
+        right_arc_file_names = [right_tab_name[3:].replace('DOT', '.').replace('DEFIS', '-') \
                                 for right_tab_name in right_tab_names if right_tab_name != left_tab_name]
         
         #Конструируем имя конечного файла
@@ -139,9 +143,11 @@ for left_tab_name in left_tab_names:
                 with open(trg_file_path, 'w') as trg_file_opened:
                         
                         #Подготавливаем и прописываем первый хэдер.
-                        #Им будет выражение, состоящее из названия
-                        #текущей левой таблицы, знака, представляющего
-                        #выбранное действие, и названий правых таблиц.
+                        #Им будет выражение, состоящее из имени
+                        #архива, соответствующего текущей
+                        #левой таблице, знака, представляющего
+                        #выбранное действие, и перечисленных
+                        #через запятую имён правых архивов.
                         trg_file_opened.write(f'##{left_arc_file_name} {sign} {", ".join(right_arc_file_names)}\n')
                         
                         #Второй хэдер - ранее восстановленная
@@ -149,18 +155,33 @@ for left_tab_name in left_tab_names:
                         trg_file_opened.write(header_line + '\n')
                         
                         #И пересечение, и вычитание программа
-                        #выполняет с помощью MySQL-алгоритма
+                        #выполняет с помощью ClickHouse-алгоритма
                         #левостороннего внешнего объединения.
                         #Если не применить какие-либо фильтры,
                         #алгоритм выдаст все элементы столбца
-                        #таблицы, имя которого вписано между
-                        #FROM и первым LEFT JOIN инструкции.
-                        #Если для элемента этого (левого)
-                        #столбца не обнаружится такого же
-                        #элемента одного из других (правых)
-                        #столбцов, то взамен недостающего
-                        #элемента выведется значение NULL.
-                        left_join = [f'LEFT JOIN {right_tab_name} ON {left_tab_name}.{col_name} = {right_tab_name}.{col_name}' \
+                        #таблицы, имя которого будет вписано
+                        #между FROM и первым LEFT JOIN инструкции,
+                        #формирование которой мы сейчас начали.
+                        #Если для элемента этого (левого) столбца
+                        #не обнаружится такого же элемента в
+                        #оппонирующих (правых) столбцах, то взамен
+                        #недостающих элементов выведется значение NULL.
+                        #Для элемента левого столбца, может, наоборот,
+                        #найтись более одного совпадения в правых.
+                        #Тогда, в случае пересечения, строка
+                        #или часть строки с этим элементом
+                        #вылезет столько же раз, сколько и
+                        #совпадений - таково поведение многих
+                        #(а может, и всех) SQL-СУБД в этой ситуации.
+                        #Подавляем появление таких повторов,
+                        #вписывая ANY перед каждым LEFT.
+                        #Но если внутри левого столбца дублирующиеся
+                        #элементы есть изначально, ANY не сработает.
+                        #И это правильно: дубли в столбце
+                        #исходного файла вряд ли существуют
+                        #без одобрения исследователя, а,
+                        #значит, программа их должна сохранять.
+                        left_join = [f'ANY LEFT JOIN {right_tab_name} ON {left_tab_name}.{col_name} = {right_tab_name}.{col_name}' \
                                      for right_tab_name in right_tab_names if right_tab_name != left_tab_name]
                         
                         #Пересечение будет считаться успешным, если для
@@ -178,25 +199,9 @@ for left_tab_name in left_tab_names:
                         #Результат - остающиеся байтовые
                         #позиции начала строк соответствующей
                         #(левой) архивированной таблицы.
-                        #Для элемента левого столбца может
-                        #найтись более одного совпадения в правых.
-                        #Тогда, в случае пересечения, его байтовая
-                        #позиция вылезет несколько раз - такова
-                        #особенность работы MySQL в этой ситуации.
-                        #Подавляем появление повторов байтовых
-                        #позиций, применяя ключевое слово DISTINCT.
-                        #Если же изначально есть дублирующиеся элементы
-                        #внутри левого столбца, DISTINCT не сработает,
-                        #т.к. каждый такой элемент происходит из
-                        #отдельной строки исходного файла, обладающей
-                        #уникальной байтовой позицией начала.
-                        #И это правильно: дубли в столбце
-                        #исходного файла вряд ли существуют
-                        #без одобрения исследователя, а,
-                        #значит, программа их должна сохранять.
-                        cursor.execute(f'''SELECT DISTINCT {left_tab_name}.line_start FROM {left_tab_name}
-                                           {" ".join(left_join)}
-                                           WHERE {" AND ".join(where)}''')
+                        res = client.execute_iter(f'''SELECT {left_tab_name}.line_start FROM {left_tab_name}
+                                                      {" ".join(left_join)}
+                                                      WHERE {" AND ".join(where)}''')
                         
                         print(f'Извлечение отобранных строк таблицы {left_arc_file_name}')
                         
@@ -210,7 +215,7 @@ for left_tab_name in left_tab_names:
                         #Присвоение флагу значения, показывающего
                         #наличие в конечном файле нехэдерных строк.
                         cur_pointer = 0
-                        for line_start in cursor:
+                        for line_start in res:
                                 new_pointer = line_start[0]
                                 left_arc_file_opened.seek(new_pointer - cur_pointer, 1)
                                 trg_file_opened.write(left_arc_file_opened.readline().decode('UTF-8'))
@@ -226,4 +231,4 @@ for left_tab_name in left_tab_names:
         if empty_res == True:
                 os.remove(trg_file_path)
                 
-cnx.close()
+client.disconnect()

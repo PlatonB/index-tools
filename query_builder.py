@@ -1,17 +1,17 @@
-__version__ = 'V2.4'
+__version__ = 'V3.0'
 
 print('''
 Конструктор запросов к большим таблицам.
 
 Автор: Платон Быкадоров (platon.work@gmail.com), 2019.
-Версия: V2.4.
+Версия: V3.0.
 Лицензия: GNU General Public License version 3.
 Поддержать проект: https://money.yandex.ru/to/41001832285976
 Документация: https://github.com/PlatonB/index-tools/blob/master/README.md
 
 Обязательно!
 Перед запуском программы нужно установить модуль:
-sudo pip3 install mysql-connector-python
+pip3 install clickhouse-driver --user
 
 Таблицы, по которым будет производиться поиск,
 должны соответствовать таким требованиям:
@@ -29,6 +29,22 @@ ftp://ftp.1000genomes.ebi.ac.uk/vol1/ftp/release/20130502/supporting/GRCh38_posi
 диалога, вам непонятны - пишите, пожалуйста, в Issues.
 ''')
 
+def create_todecimal_func(col_names_n_types, col_name, raw_cond):
+        '''
+        Если в стоблце БД - Decimal-значения,
+        то и числа, подаваемые в запрос, надо
+        конвертировать в этот тип данных.
+        Эта функция конструирует функцию
+        ClickHouse, выполняющую такую задачу.
+        '''
+        if col_names_n_types[col_name].startswith('Decimal'):
+                cond = [f'toDecimal64({num}, {str(len(num.split(".")[1]))})' for num in raw_cond]
+        else:
+                cond = raw_cond
+        return cond
+
+####################################################################################################
+
 print('\nИмпорт модулей программы...')
 
 import sys
@@ -37,8 +53,9 @@ import sys
 #целью предотвращения искажения результатов.
 sys.dont_write_bytecode = True
 
-import mysql.connector, os, gzip
 from backend.table_indexer import create_database
+from clickhouse_driver import Client
+import os, gzip
 
 #Индексация выбранных пользователем
 #столбцов исходных сжатых таблиц.
@@ -49,12 +66,11 @@ from backend.table_indexer import create_database
 #Получение путей к папке с упомянутыми
 #таблицами и конечной папки, а также
 #различных характеристик базы данных.
-arc_dir_path, trg_dir_path, user, db_name, tab_names, col_names_n_types = create_database()
+arc_dir_path, trg_dir_path, db_name, tab_names, col_names_n_types = create_database()
 
 #Стандартные действия для подключения к БД.
-cnx = mysql.connector.connect(user=user)
-cursor = cnx.cursor()
-cursor.execute(f'USE {db_name}')
+client = Client('localhost')
+client.execute(f'USE {db_name}')
 
 cont, conds = 'y', []
 while cont not in ['no', 'n', '']:
@@ -68,41 +84,52 @@ while cont not in ['no', 'n', '']:
         else:
                 col_name = list(col_names_n_types.keys())[0]
                 
-        if col_names_n_types[col_name] == 'char':
+        if col_names_n_types[col_name] == 'String':
                 operator = input('''\nОператор сравнения
 (игнорирование ввода ==> поиск будет по самим словам)
 [not in|in(|<enter>)]: ''').upper()
-                if operator not in ['NOT IN', 'IN', '']:
+                if operator == '':
+                        operator = 'IN'
+                elif operator not in ['NOT IN', 'IN']:
                         print(f'{operator} - недопустимая опция')
                         sys.exit()
                         
+                raw_cond = input(f'''\nИскомое/исключаемое слово или несколько слов
+(через запятую с пробелом):
+{operator} ''').split(', ')
+                cond = [f"'{word}'" for word in raw_cond]
+                conds.append(f'({col_name} {operator} ({", ".join(cond)}))')
+                
         else:
                 operator = input('''\nОператор сравнения
 (игнорирование ввода ==> поиск будет по самим числам)
-(between - поиск от числа 1 до числа 2 включительно)
+(between - диапазон от 1-го до 2-го числа *включительно*)
 [>|<|>=|<=|between|not in|in(|<enter>)]: ''').upper()
-                if operator not in ['>', '<', '>=', '<=', 'BETWEEN', 'NOT IN', 'IN', '']:
+                if operator == '':
+                        operator = 'IN'
+                elif operator not in ['>', '<', '>=', '<=', 'BETWEEN', 'NOT IN', 'IN']:
                         print(f'{operator} - недопустимая опция')
                         sys.exit()
                         
-                elif operator in ['>', '<', '>=', '<=']:
-                        cond = input(f'''\nПоисковое условие:
-{operator} ''')
-                        
-                elif operator == 'BETWEEN':
-                        cond = input('\nНижняя граница: ') + ' AND '
-                        cond += input('\nВерхняя граница: ')
-                conds.append(f'({col_name} {operator} {cond})')
-                
-        if operator in ['NOT IN', 'IN', '']:
-                if operator == '':
-                        operator = 'IN'
-                raw_cond = input(f'''\nПоисковое слово или несколько слов
+                if operator in ['NOT IN', 'IN']:
+                        raw_cond = input(f'''\nИскомое/исключаемое число или несколько чисел
 (через запятую с пробелом):
 {operator} ''').split(', ')
-                cond = [f'"{word}"' for word in raw_cond]
-                conds.append(f'({col_name} {operator} ({", ".join(cond)}))')
-                
+                        cond = create_todecimal_func(col_names_n_types, col_name, raw_cond)
+                        conds.append(f'({col_name} {operator} ({", ".join(cond)}))')
+                        
+                else:
+                        if operator in ['>', '<', '>=', '<=']:
+                                raw_cond = [input(f'''\nПоисковое условие:
+{operator} ''')]
+                                
+                        elif operator == 'BETWEEN':
+                                raw_cond = [input('\nНижняя граница: ')]
+                                raw_cond.append(input('\nВерхняя граница: '))
+                                
+                        cond = create_todecimal_func(col_names_n_types, col_name, raw_cond)
+                        conds.append(f'({col_name} {operator} {" AND ".join(cond)})')
+                        
         if len(col_names_n_types) > 1:
                 cont = input('''\nИскать ещё в одном столбце?
 (игнорирование ввода ==> нет)
@@ -124,8 +151,7 @@ where = " AND ".join(conds)
 #Исходная последовательность этих
 #элементов сохранена, поэтому из
 #них легко собираем шапку обратно.
-cursor.execute('SELECT header_cells FROM header')
-header_line = '\t'.join([tup[0] for tup in cursor])
+header_line = '\t'.join([tup[0] for tup in client.execute('SELECT header_cells FROM header')])
 
 #Поиск производится по всем таблицам базы.
 #Т.е. даже, если в одной из них уже
@@ -141,7 +167,7 @@ for tab_name in tab_names:
         #Теперь для решения обратной задачи - получения
         #имени архива по имени таблицы - возвращаем точки
         #и дефисы на позиции альтернативных обозначений.
-        arc_file_name = tab_name.replace('DOT', '.').replace('DEFIS', '-')
+        arc_file_name = tab_name[3:].replace('DOT', '.').replace('DEFIS', '-')
         
         #Конструируем имя конечного файла
         #и абсолютный путь к этому файлу.
@@ -159,7 +185,7 @@ for tab_name in tab_names:
                 with open(trg_file_path, 'w') as trg_file_opened:
                         
                         #Прописываем сконкатенированные
-                        #поисковые условия в конечный файл
+                        #условия поиска в конечный файл
                         #в качестве первого из хэдеров.
                         trg_file_opened.write(f'##{where}\n')
                         
@@ -172,11 +198,11 @@ for tab_name in tab_names:
                         
                         #Инструкция, собственно, поиска.
                         #Она позволит извлечь из текущей
-                        #таблицы БД байтовые позиции
-                        #начала отвечающих этому запросу
+                        #таблицы БД байтовые позиции начала
+                        #отвечающих поисковым условиям
                         #строк архивированной таблицы.
-                        cursor.execute(f'''SELECT line_start FROM {tab_name}
-                                           WHERE {where}''')
+                        res = client.execute_iter(f'''SELECT line_start FROM {tab_name}
+                                                      WHERE {where}''')
                         
                         print(f'Извлечение отобранных строк таблицы {arc_file_name}')
                         
@@ -190,7 +216,7 @@ for tab_name in tab_names:
                         #Присвоение флагу значения, показывающего
                         #наличие в конечном файле нехэдерных строк.
                         cur_pointer = 0
-                        for line_start in cursor:
+                        for line_start in res:
                                 new_pointer = line_start[0]
                                 arc_file_opened.seek(new_pointer - cur_pointer, 1)
                                 trg_file_opened.write(arc_file_opened.readline().decode('UTF-8'))
@@ -204,4 +230,4 @@ for tab_name in tab_names:
         if empty_res == True:
                 os.remove(trg_file_path)
                 
-cnx.close()
+client.disconnect()
