@@ -61,6 +61,7 @@ sudo apt install clickhouse-client clickhouse-server
 ```
 
 Когда появится сиреневый экран с предложением задать пароль пользователя ClickHouse, просто нажимаем `<enter>`.
+
 ![Текст](https://raw.githubusercontent.com/PlatonB/index-tools/master/gallery/ClickHouse_password.png)
 
 Перезагружаем ОС. Это, кстати, тоже можно из командной строки сделать.
