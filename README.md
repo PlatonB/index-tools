@@ -12,7 +12,7 @@
 ## Перед началом работы.
 1. Убедитесь, что в ОС установлен Python не ниже версии 3.6.
 2. Если не хотите запускать программу из командной строки, установите любую понравившуюся вам среду разработки для Python. Я рекомендую [IDLE](https://github.com/PlatonB/bioinformatic-python-scripts#установка-среды-разработки).
-3. Установите модуль, позволяющий использовать внутри Python-кода ClickHouse-инструкции.
+3. [Установите](https://github.com/PlatonB/index-tools#важно-знать-о-командной-строке-linux) модуль, позволяющий использовать внутри Python-кода ClickHouse-инструкции.
 ```
 pip3 install clickhouse-driver --user
 ```
@@ -60,7 +60,7 @@ sudo apt update
 sudo apt install clickhouse-client clickhouse-server
 ```
 
-Когда появится сиреневый экран с запросом пароля пользователя ClickHouse, просто нажимаем `<enter>`.
+Когда появится сиреневый экран с предложением задать пароль пользователя ClickHouse, просто нажимаем `<enter>`.
 ![Текст](https://raw.githubusercontent.com/PlatonB/index-tools/master/gallery/ClickHouse_password.png)
 
 Перезагружаем ОС. Это, кстати, тоже можно из командной строки сделать.
