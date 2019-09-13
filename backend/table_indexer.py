@@ -1,7 +1,8 @@
-__version__ = 'V2.0'
+__version__ = 'V2.1'
 
 import os, sys, gzip, copy, re
 from clickhouse_driver import Client
+from decimal import Decimal, ROUND_HALF_UP
 
 '''
 Чтение очередной строки, отщепление
@@ -14,12 +15,13 @@ def fetch_cells(row, col_info, line_start):
         Функция принимает очередную строку обрабатываемой
         таблицы и словарь, ключи которого - названия
         выбранных столбцов, а значения - списки из типа
-        данных и индекса ячейки каждого выбранного столбца.
+        данных, индекса ячейки и, если имеется, количества
+        цифр после точки для каждого выбранного столбца.
         Последний элемент словаря - исключение: он
         описывает формируемый по ходу выполнения программы
         столбец с позициями начала нехэдерных табличных строк.
-        Функцией произведётся отбор из текущей строки ячеек
-        упомянутых столбцов с присвоением подходящих типов данных.
+        Функция произведёт отбор ячеек упомянутых столбцов из
+        текущей строки и присвоит каждой подходящий тип данных.
         '''
         cells = []
         for col_name, col_ann in col_info.items():
@@ -27,7 +29,7 @@ def fetch_cells(row, col_info, line_start):
                 #Добавление к списку отобранных
                 #ячеек байтовой позиции начала
                 #строки, содержащей эти ячейки.
-                #Эти позиции далее послужат
+                #Такие позиции далее послужат
                 #индексом табличных строк.
                 if col_name == 'line_start':
                         cells.append(line_start)
@@ -37,11 +39,19 @@ def fetch_cells(row, col_info, line_start):
                 #INSERT INTO, но при этом clickhouse-driver
                 #позволяет подавать сами значения отдельным
                 #Python-словарём, а не в составе INSERT-инструкции.
-                #Поэтому отобранным ячейкам можно дать питоновские типы
-                #данных: int для целых чисел и str для всех остальных.
+                #Поэтому отобранным ячейкам можно дать питоновские
+                #типы данных: int для целых чисел, Decimal для
+                #вещественных чисел и str, если ячейка нечисловая.
+                #Вещественные числа будут округляться до заданного
+                #исследователем количества знаков после точки.
+                #Если следующая после этого количества цифра - 5,
+                #то округление произведётся до большего значения.
                 elif col_ann[0] == 'Int64':
                         cells.append(int(row[col_ann[1]]))
-                elif col_ann[0] == 'String' or col_ann[0].startswith('Decimal64'):
+                elif col_ann[0].startswith('Decimal64'):
+                        cells.append(Decimal(row[col_ann[1]]).quantize(Decimal('1.' + '0' * int(col_ann[2])),
+                                                                       ROUND_HALF_UP))
+                elif col_ann[0] == 'String':
                         cells.append(row[col_ann[1]])
                         
 def create_database():
@@ -131,6 +141,8 @@ https://github.com/PlatonB/bioinformatic-python-scripts)
 [integer(|i)|decimal(|d)|string(|s)]: ''')
                 if data_type in ['integer', 'i']:
                         data_type = 'Int64'
+                        tale = None
+                        
                 elif data_type in ['decimal', 'd']:
                         tale = input('''\nСколько оставлять знаков после точки?
 (игнорирование ввода ==> 5)
@@ -141,12 +153,14 @@ https://github.com/PlatonB/bioinformatic-python-scripts)
                                 print(f'{tale} - недопустимая опция')
                                 sys.exit()
                         data_type = f'Decimal64({tale})'
+                        
                 elif data_type in ['string', 's']:
                         data_type = 'String'
+                        tale = None
                 else:
                         print(f'{data_type} - недопустимая опция')
                         sys.exit()
-                col_info[col_name] = [data_type, 'cell_index']
+                col_info[col_name] = [data_type, 'cell_index', tale]
                 
                 cont = input('''\nПроиндексировать по ещё одному столбцу?
 (игнорирование ввода ==> нет)
@@ -160,7 +174,7 @@ https://github.com/PlatonB/bioinformatic-python-scripts)
         #и характеристиками выбранных пользователем
         #столбцов парой ключ-значение, описывающей
         #столбец индексов архивированной таблицы.
-        col_info['line_start'] = ['Int64', None]
+        col_info['line_start'] = ['Int64']
         
         #Получаем названия указанных пользователем
         #столбцов и столбца с индексами сжатой таблицы.
