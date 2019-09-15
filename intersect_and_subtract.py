@@ -1,4 +1,4 @@
-__version__ = 'V4.1'
+__version__ = 'V4.2'
 
 print('''
 Программа пересечения и вычитания.
@@ -6,7 +6,7 @@ print('''
 Работает только с testing-версией ClickHouse!
 
 Автор: Платон Быкадоров (platon.work@gmail.com), 2019.
-Версия: V4.1.
+Версия: V4.2.
 Лицензия: GNU General Public License version 3.
 Поддержать проект: https://money.yandex.ru/to/41001832285976
 Документация: https://github.com/PlatonB/index-tools/blob/master/README.md
@@ -124,9 +124,9 @@ else:
 mode = input('''\nЖёсткий или щадящий режим?
 [hard(|h)|gentle(|g)]: ''')
 if mode in ['hard', 'h']:
-        logical = " AND "
+        logical, mode = " AND ", 'hard'
 elif mode in ['gentle', 'g']:
-        logical = " OR "
+        logical, mode = " OR ", 'gentle'
 else:
         print(f'{mode} - недопустимая опция')
         sys.exit()
@@ -192,7 +192,11 @@ for left_tab_name in left_tab_names:
                         #через запятую имён правых архивов.
                         trg_file_opened.write(f'##{left_arc_file_name} {sign} {", ".join(right_arc_file_names)}\n')
                         
-                        #Второй хэдер - ранее восстановленная
+                        #Второй хэдер - выбранный исследователем режим
+                        #пересечения/вычитания: жёсткий или щадящий.
+                        trg_file_opened.write(f'##mode = {mode}\n')
+                        
+                        #Третий хэдер - ранее восстановленная
                         #из специальной таблицы БД шапка.
                         trg_file_opened.write(header_line + '\n')
                         
