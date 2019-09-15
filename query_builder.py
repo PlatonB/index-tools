@@ -1,10 +1,10 @@
-__version__ = 'V3.0'
+__version__ = 'V3.1'
 
 print('''
 Конструктор запросов к большим таблицам.
 
 Автор: Платон Быкадоров (platon.work@gmail.com), 2019.
-Версия: V3.0.
+Версия: V3.1.
 Лицензия: GNU General Public License version 3.
 Поддержать проект: https://money.yandex.ru/to/41001832285976
 Документация: https://github.com/PlatonB/index-tools/blob/master/README.md
@@ -67,10 +67,6 @@ import os, gzip
 #таблицами и конечной папки, а также
 #различных характеристик базы данных.
 arc_dir_path, trg_dir_path, db_name, tab_names, col_names_n_types = create_database()
-
-#Стандартные действия для подключения к БД.
-client = Client('localhost')
-client.execute(f'USE {db_name}')
 
 cont, conds = 'y', []
 while cont not in ['no', 'n', '']:
@@ -141,6 +137,11 @@ while cont not in ['no', 'n', '']:
         else:
                 break
         
+#Стандартные действия
+#для подключения к БД.
+client = Client('localhost')
+client.execute(f'USE {db_name}')
+
 #Объединяем сформированные
 #ранее поисковые условия.
 where = " AND ".join(conds)

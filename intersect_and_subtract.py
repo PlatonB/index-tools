@@ -1,4 +1,4 @@
-__version__ = 'V4.0'
+__version__ = 'V4.1'
 
 print('''
 Программа пересечения и вычитания.
@@ -6,7 +6,7 @@ print('''
 Работает только с testing-версией ClickHouse!
 
 Автор: Платон Быкадоров (platon.work@gmail.com), 2019.
-Версия: V4.0.
+Версия: V4.1.
 Лицензия: GNU General Public License version 3.
 Поддержать проект: https://money.yandex.ru/to/41001832285976
 Документация: https://github.com/PlatonB/index-tools/blob/master/README.md
@@ -71,8 +71,8 @@ import sys
 sys.dont_write_bytecode = True
 
 from backend.table_indexer import create_database
-from clickhouse_driver import Client
 import copy, os, gzip
+from clickhouse_driver import Client
 
 #Индексация выбранных пользователем
 #столбцов исходных сжатых таблиц.
@@ -89,10 +89,6 @@ if len(tab_names) == 1:
         print('Для пересечения или вычитания требуется не менее двух таблиц')
         sys.exit()
         
-#Стандартные действия для подключения к БД.
-client = Client('localhost')
-client.execute(f'USE {db_name}')
-
 left_tab_names = input(f'''\nИмя одной или имена нескольких "левых" таблиц БД
 (через запятую с пробелом)
 (игнорирование ввода ==> все таблицы БД сделать "левыми")
@@ -135,6 +131,16 @@ else:
         print(f'{mode} - недопустимая опция')
         sys.exit()
         
+#Стандартные действия
+#для подключения к БД.
+client = Client('localhost')
+client.execute(f'USE {db_name}')
+
+#Какой бы тип данных у пересекаемых или
+#вычитаемых столбцов ни был, эта настройка
+#заставляет ClickHouse вписывать в
+#пустые ячейки декартовых произведений
+#таблиц исключительно NULL-значения.
 client.execute('SET join_use_nulls = 1')
 
 #Созданная бэкендом БД также
