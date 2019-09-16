@@ -1,4 +1,4 @@
-__version__ = 'V2.1'
+__version__ = 'V2.2'
 
 import os, sys, gzip, copy, re
 from clickhouse_driver import Client
@@ -272,8 +272,13 @@ https://github.com/PlatonB/bioinformatic-python-scripts)
                         #gzip-архивированной крупной таблице.
                         #Имя и тип данных каждого столбца БД
                         #берём из ранее сформированного словаря.
+                        #По умолчанию ClickHouse сжимает каждый
+                        #столбец очень быстрым, но практически
+                        #не уменьшающим размер алгоритмом LZ4.
+                        #Применем к столбцам оптимальный по
+                        #скорости и степени компрессии Zstandart.
                         client.execute(f'''CREATE TABLE {tab_name}
-                                           ({", ".join([col_name + " " + col_ann[0] for col_name, col_ann in col_info.items()])})
+                                           ({", ".join([col_name + " " + col_ann[0] + " CODEC(ZSTD(22))" for col_name, col_ann in col_info.items()])})
                                            ENGINE = MergeTree()
                                            ORDER BY ({", ".join(col_names[:-1])})''')
                         
