@@ -1,10 +1,10 @@
-__version__ = 'V3.1'
+__version__ = 'V3.2'
 
 print('''
 Конструктор запросов к большим таблицам.
 
 Автор: Платон Быкадоров (platon.work@gmail.com), 2019.
-Версия: V3.1.
+Версия: V3.2.
 Лицензия: GNU General Public License version 3.
 Поддержать проект: https://money.yandex.ru/to/41001832285976
 Документация: https://github.com/PlatonB/index-tools/blob/master/README.md
@@ -72,7 +72,8 @@ cont, conds = 'y', []
 while cont not in ['no', 'n', '']:
         
         if len(col_names_n_types) > 1:
-                col_name = input('\nИмя столбца, в котором ищем: ')
+                col_name = input(f'''\nИмя столбца, в котором ищем
+[{"|".join(col_names_n_types.keys())}]: ''')
                 if col_name not in col_names_n_types:
                         print(f'{col_name} - недопустимая опция')
                         sys.exit()

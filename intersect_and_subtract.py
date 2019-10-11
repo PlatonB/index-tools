@@ -1,12 +1,10 @@
-__version__ = 'V4.2'
+__version__ = 'V4.3'
 
 print('''
 Программа пересечения и вычитания.
 
-Работает только с testing-версией ClickHouse!
-
 Автор: Платон Быкадоров (platon.work@gmail.com), 2019.
-Версия: V4.2.
+Версия: V4.3.
 Лицензия: GNU General Public License version 3.
 Поддержать проект: https://money.yandex.ru/to/41001832285976
 Документация: https://github.com/PlatonB/index-tools/blob/master/README.md
@@ -104,7 +102,8 @@ if right_tab_names == ['']:
         right_tab_names = copy.deepcopy(tab_names)
         
 if len(col_names_n_types) > 1:
-        col_name = input('\nИмя столбца, по которому пересекаем или вычитаем: ')
+        col_name = input(f'''\nИмя столбца, по которому пересекаем или вычитаем
+[{"|".join(col_names_n_types.keys())}]: ''')
         if col_name not in col_names_n_types:
                 print(f'{col_name} - недопустимая опция')
                 sys.exit()
