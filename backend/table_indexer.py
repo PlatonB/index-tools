@@ -1,4 +1,4 @@
-__version__ = 'V2.2'
+__version__ = 'V2.3'
 
 import os, sys, gzip, copy, re
 from clickhouse_driver import Client
@@ -63,7 +63,7 @@ def create_database():
         '''
         ind_dir_path = os.path.normpath(input('\nПуть к папке с индексируемыми архивами: '))
         
-        trg_dir_path = input('\nПуть к папке для поисковых результатов: ')
+        trg_dir_path = input('\nПуть к папке для результатов: ')
         
         #Имя базы данных сделаем для простоты почти
         #тем же, что и у папки с индексируемыми файлами.
